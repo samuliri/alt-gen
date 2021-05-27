@@ -31,6 +31,8 @@ final random = Random();
 const black = const Color(0xff000000);
 const white = const Color(0xffFFFFFF);
 
+double _currentGenerativeValue = 0;
+
 class Config {
   final Color backgroundColor;
   final Color fillColor;
@@ -121,8 +123,8 @@ class Node {
 
     if (fadeColor) {
       final hsl = HSLColor.fromColor(color);
-      color = hsl.withLightness(max(hsl.lightness - 0.0075, 0)).toColor();
-      color = color.withOpacity(max(color.opacity - 0.01, 0));
+      color = hsl.withLightness(max(hsl.lightness - 0.0025, 0)).toColor();
+      color = color.withOpacity(max(color.opacity - 0.005, 0));
     }
   }
 
@@ -467,9 +469,10 @@ class _LiveCanvasState extends State<LiveCanvas> with TickerProviderStateMixin {
     var perlinNoise = PerlinNoise();
     var noise = perlinNoise.getPerlin2(position.dx, position.dy);
     var noise2 = perlinNoise.getPerlin2(position.dy, position.dx);
+    var genVal = _currentGenerativeValue / 100;
 
-    nextX = position.dx + (noise * position.dx);
-    nextY = position.dy + (noise2 * position.dy);
+    nextX = position.dx + (noise * position.dx) * genVal;
+    nextY = position.dy + (noise2 * position.dy) * genVal;
 
     widget.controller.addPoint(Offset(nextX, nextY));
   }
@@ -480,7 +483,7 @@ class _LiveCanvasState extends State<LiveCanvas> with TickerProviderStateMixin {
         onHover: widget.controller.config.applyForce
             ? (event) {
                 widget.controller.addPoint(event.localPosition);
-                if (widget.controller.generative)
+                if (_currentGenerativeValue > 0)
                   _generative(event.localPosition);
                 anim
                   ..forward()
@@ -489,7 +492,7 @@ class _LiveCanvasState extends State<LiveCanvas> with TickerProviderStateMixin {
             : null,
         onEnter: (event) {
           widget.controller.addPoint(event.localPosition);
-          if (widget.controller.generative) _generative(event.localPosition);
+          if (_currentGenerativeValue > 0) _generative(event.localPosition);
           anim
             ..forward()
             ..repeat();
@@ -498,8 +501,7 @@ class _LiveCanvasState extends State<LiveCanvas> with TickerProviderStateMixin {
             onTap: widget.controller.freeze,
             onPanUpdate: (event) {
               widget.controller.addPoint(event.localPosition);
-              if (widget.controller.generative)
-                _generative(event.localPosition);
+              if (_currentGenerativeValue > 0) _generative(event.localPosition);
               anim
                 ..forward()
                 ..repeat();
@@ -666,7 +668,7 @@ class _AppbarState extends State<Appbar> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobileScreen = MediaQuery.of(context).size.width <= 900;
+    //final isMobileScreen = MediaQuery.of(context).size.width <= 900;
     final controller = widget.controller;
     return StreamBuilder<Config>(
       initialData: Config(),
@@ -722,23 +724,15 @@ class _AppbarState extends State<Appbar> {
                         onPressed: controller.clear,
                       ),
                     ),
-                    Tooltip(
-                      message: 'Generative',
-                      child: IconButton(
-                          icon: Icon(Icons.graphic_eq, color: _genIconColor),
-                          onPressed: () {
-                            setState(() {
-                              if (_genIconColor == Colors.grey) {
-                                _genIconColor = Colors.tealAccent;
-                                //_currentEntry = null;
-                                widget.controller.generative = true;
-                              } else {
-                                _genIconColor = Colors.grey;
-                                //_currentEntry = null;
-                                widget.controller.generative = false;
-                              }
-                            });
-                          }),
+                    GenerativeSelector(
+                      //color: config.fillColor,
+                      brightness: brightness,
+                      label: '',
+                      onGenerativeSelection: (g) {
+                        _currentEntry = null;
+                        //widget.controller.generative = g;
+                      },
+                      onOpenOverlay: (entry) => _updateEntry(entry),
                     ),
                     ColorSelector(
                       color: config.fillColor,
@@ -757,6 +751,195 @@ class _AppbarState extends State<Appbar> {
           ),
         );
       },
+    );
+  }
+}
+
+class GenerativeSelector extends StatefulWidget {
+  //final Color color;
+
+  final String label;
+
+  final Brightness brightness;
+
+  final ValueChanged<Color> onGenerativeSelection;
+  final ValueChanged<Future<OverlayEntry>> onOpenOverlay;
+
+  const GenerativeSelector({
+    Key key,
+    //@required this.color,
+    @required this.brightness,
+    @required this.label,
+    this.onGenerativeSelection,
+    this.onOpenOverlay,
+  }) : super(key: key);
+
+  @override
+  _GenerativeSelectorState createState() => _GenerativeSelectorState();
+}
+
+Color _genIconColor = Colors.grey;
+
+class _GenerativeSelectorState extends State<GenerativeSelector> {
+  Future<OverlayEntry> colorPicker;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        //if (widget.color != Colors.transparent)
+        Tooltip(
+          message: 'Generative',
+          child: IconButton(
+              icon: Icon(Icons.graphic_eq, color: _genIconColor),
+              onPressed: () {
+                setState(() {
+                  if (_genIconColor == Colors.grey) {
+                    _genIconColor = Colors.tealAccent;
+                    colorPicker = _openGenerativeSelector(context);
+                    widget.onOpenOverlay(colorPicker);
+                    //_currentEntry = null;
+                    //widget.controller.generative = true;
+                  } else {
+                    _genIconColor = Colors.grey;
+                    widget.onOpenOverlay(null);
+                    colorPicker = null;
+                    setState(() {});
+                    //_currentEntry = null;
+                    //widget.controller.generative = false;
+                  }
+                });
+              }),
+        ),
+      ],
+    );
+  }
+
+  Future<OverlayEntry> _openGenerativeSelector(BuildContext context) async {
+    final renderer = context.findRenderObject() as RenderBox;
+    final left =
+        renderer.size.bottomLeft(renderer.localToGlobal(Offset.zero)).dx;
+
+    OverlayState overlayState = Overlay.of(context);
+    OverlayEntry overlayEntry;
+    overlayEntry = OverlayEntry(
+      builder: (_) => _buildGenerativeSelector(
+        context,
+        left,
+        MediaQuery.of(context).size.width,
+        () => overlayEntry.remove(),
+      ),
+    );
+
+    overlayState.insert(overlayEntry);
+    return overlayEntry;
+  }
+
+  Widget _buildGenerativeSelector(
+    BuildContext context,
+    double left,
+    double width,
+    VoidCallback onSelect,
+  ) =>
+      Positioned(
+        top: 70.0,
+        right: 18.0,
+        //left: min(max(left - 80, 0), width - 200),
+        child: _GenerativeSelectorGrid(
+          onSelect: () {
+            onSelect();
+            //colorPicker = null;
+            //setState(() {});
+          },
+          onColorSelection: (c) {
+            //widget.onColorSelection(c);
+            //colorPicker = null;
+            //setState(() {});
+          },
+        ),
+      );
+}
+
+class _GenerativeSelectorGrid extends StatefulWidget {
+  final ValueChanged<Color> onColorSelection;
+  final VoidCallback onSelect;
+  final Color currentGenerative;
+
+  const _GenerativeSelectorGrid({
+    Key key,
+    this.onColorSelection,
+    this.onSelect,
+    this.currentGenerative,
+  }) : super(key: key);
+
+  @override
+  __GenerativeSelectorGridState createState() =>
+      __GenerativeSelectorGridState();
+}
+
+class __GenerativeSelectorGridState extends State<_GenerativeSelectorGrid> {
+  Color currentColor;
+  double generative = 0;
+
+  @override
+  void initState() {
+    currentColor = widget.currentGenerative;
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 200,
+      margin: const EdgeInsets.only(top: 10.0),
+      child: Card(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            Text(
+              'noise',
+              style: GoogleFonts.raleway(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w300),
+            ),
+            Slider(
+              activeColor: Colors.teal,
+              value: generative,
+              min: 0,
+              max: 100,
+              divisions: 5,
+              label: generative.round().toString(),
+              onChanged: (double value) {
+                setState(() {
+                  generative = value;
+                  _currentGenerativeValue = value;
+                });
+              },
+            ),
+            /* Text(
+              'mix',
+              style: GoogleFonts.raleway(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w300),
+            ),
+            Slider(
+              activeColor: Colors.teal,
+              value: _currentMixValue,
+              min: 0,
+              max: 100,
+              divisions: 1,
+              label: _currentMixValue.round().toString(),
+              onChanged: (double value) {
+                setState(() {
+                  _currentMixValue = value;
+                });
+              },
+            ), */
+          ],
+        ),
+      ),
     );
   }
 }
@@ -801,6 +984,7 @@ class _ColorSelectorState extends State<ColorSelector> {
               } else {
                 colorPicker = _openColorPicker(context);
                 widget.onOpenOverlay(colorPicker);
+                _genIconColor = Colors.grey;
               }
             },
             child: Container(
@@ -971,7 +1155,7 @@ Future<void> _save() async {
   print(result);
 }
 
-Future<void> _hideTools() async {}
+//Future<void> _hideTools() async {}
 
 class SettingsDrawer extends StatefulWidget {
   final GraphController controller;
