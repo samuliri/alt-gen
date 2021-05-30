@@ -1,16 +1,44 @@
-# alt_gen
+# Expanding Flutter Framework: Generative Art with Alternative Tools
 
-A new Flutter project.
+Application for the creation of generative 2D vector graphics that maximizes the distribution of this software and facilitates the creation of visual generative art.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- [Flutter 2](https://flutter.dev)
+- [Material Design](https://material.io/design)
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
+For help getting started with Flutter, view
 [online documentation](https://flutter.dev/docs), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Quick Start
+
+```sh
+$ flutter pub get
+$ flutter run
+```
+
+## Project structure
+
+```
+.
+├── android             # Android App
+├── ios                 # iOS App
+├── lib                 # Uncompiled source code
+│   ├── alt_gen.dart
+│   ├── main.dart       # Main entry point
+│   └── ...
+├── web                 # Compiled Web App
+└── ...                 # Config files etc.
+```
+
+## License
+
+Copyright (c) 2021 Samuli Ristimäki
+
+Source code is open source and released under the MIT license.
+
+## Final Result
+
+
+![Screenshot](https://github.com/samuliri/alt-gen/blob/master/01.png)
