@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -131,6 +132,7 @@ class Node {
   freeze() => _freezed = true;
 
   void draw(Canvas canvas) {
+    // Between nodes
     //canvas.drawCircle(offset, 2, whiteFill);
   }
 }
@@ -143,6 +145,7 @@ class Line {
   Line(this.points);
 
   void draw(Canvas canvas) {
+    // Simple line
     //canvas.drawLine(points.first.offset, points.last.offset, paint);
   }
 }
@@ -194,6 +197,7 @@ class Polygon {
 
     paint = Paint()..color = fillColor;
 
+    // BlendMode
     /* if (generative) {
       paint = Paint()
         ..color = fillColor
@@ -320,7 +324,7 @@ class GraphScreen extends StatelessWidget {
     final iconColor =
         brightness == Brightness.light ? Colors.black54 : Colors.white54;
     return Scaffold(
-      drawer: Platform.isIOS
+      drawer: !kIsWeb
           ? Theme(
               data: Theme.of(context).copyWith(
                 canvasColor: Colors.transparent,
@@ -480,46 +484,48 @@ class _LiveCanvasState extends State<LiveCanvas> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-        onHover: widget.controller.config.applyForce
-            ? (event) {
-                widget.controller.addPoint(event.localPosition);
-                if (_currentGenerativeValue > 0)
-                  _generative(event.localPosition);
-                anim
-                  ..forward()
-                  ..repeat();
-              }
-            : null,
-        onEnter: (event) {
+      onHover: widget.controller.config.applyForce
+          ? (event) {
+              widget.controller.addPoint(event.localPosition);
+              if (_currentGenerativeValue > 0) _generative(event.localPosition);
+              anim
+                ..forward()
+                ..repeat();
+            }
+          : null,
+      onEnter: (event) {
+        // Fix
+        //widget.controller.addPoint(event.localPosition);
+        //if (_currentGenerativeValue > 0) _generative(event.localPosition);
+        anim
+          ..forward()
+          ..repeat();
+      },
+      child: GestureDetector(
+        onTap: widget.controller.freeze,
+        onPanUpdate: (event) {
           widget.controller.addPoint(event.localPosition);
           if (_currentGenerativeValue > 0) _generative(event.localPosition);
           anim
             ..forward()
             ..repeat();
         },
-        child: GestureDetector(
-            onTap: widget.controller.freeze,
-            onPanUpdate: (event) {
-              widget.controller.addPoint(event.localPosition);
-              if (_currentGenerativeValue > 0) _generative(event.localPosition);
-              anim
-                ..forward()
-                ..repeat();
-            },
-            onPanEnd: widget.controller.config.applyForce
-                ? null
-                : (_) => widget.controller.freeze(),
-            child: AnimatedBuilder(
-              animation: anim,
-              builder: (c, _) {
-                return RepaintBoundary(
-                  child: CustomPaint(
-                    size: widget.size,
-                    painter: LivePainter(widget.controller.nodes),
-                  ),
-                );
-              },
-            )));
+        onPanEnd: widget.controller.config.applyForce
+            ? null
+            : (_) => widget.controller.freeze(),
+        child: AnimatedBuilder(
+          animation: anim,
+          builder: (c, _) {
+            return RepaintBoundary(
+              child: CustomPaint(
+                size: widget.size,
+                painter: LivePainter(widget.controller.nodes),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -664,11 +670,8 @@ class _AppbarState extends State<Appbar> {
     }
   }
 
-  Color _genIconColor = Colors.grey;
-
   @override
   Widget build(BuildContext context) {
-    //final isMobileScreen = MediaQuery.of(context).size.width <= 900;
     final controller = widget.controller;
     return StreamBuilder<Config>(
       initialData: Config(),
@@ -689,7 +692,7 @@ class _AppbarState extends State<Appbar> {
               mainAxisSize: MainAxisSize.max,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                if (Platform.isIOS)
+                if (!kIsWeb)
                   IconButton(
                     icon: Icon(Icons.menu, color: iconColor),
                     onPressed: _openDrawer,
@@ -715,12 +718,6 @@ class _AppbarState extends State<Appbar> {
                       message: 'Clear',
                       child: IconButton(
                         icon: Icon(Icons.clear, color: iconColor),
-                        /* onPressed: () {
-                          setState(() {
-                            //widget.controller.clear;
-                            widget.controller.applyForce = true;
-                          });
-                        }, */
                         onPressed: controller.clear,
                       ),
                     ),
@@ -756,8 +753,6 @@ class _AppbarState extends State<Appbar> {
 }
 
 class GenerativeSelector extends StatefulWidget {
-  //final Color color;
-
   final String label;
 
   final Brightness brightness;
@@ -767,7 +762,6 @@ class GenerativeSelector extends StatefulWidget {
 
   const GenerativeSelector({
     Key key,
-    //@required this.color,
     @required this.brightness,
     @required this.label,
     this.onGenerativeSelection,
@@ -787,7 +781,6 @@ class _GenerativeSelectorState extends State<GenerativeSelector> {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        //if (widget.color != Colors.transparent)
         Tooltip(
           message: 'Generative',
           child: IconButton(
@@ -844,7 +837,6 @@ class _GenerativeSelectorState extends State<GenerativeSelector> {
       Positioned(
         top: 70.0,
         right: 18.0,
-        //left: min(max(left - 80, 0), width - 200),
         child: _GenerativeSelectorGrid(
           onSelect: () {
             onSelect();
@@ -884,6 +876,7 @@ class __GenerativeSelectorGridState extends State<_GenerativeSelectorGrid> {
   @override
   void initState() {
     currentColor = widget.currentGenerative;
+    generative = _currentGenerativeValue;
     super.initState();
   }
 
@@ -917,26 +910,6 @@ class __GenerativeSelectorGridState extends State<_GenerativeSelectorGrid> {
                 });
               },
             ),
-            /* Text(
-              'mix',
-              style: GoogleFonts.raleway(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w300),
-            ),
-            Slider(
-              activeColor: Colors.teal,
-              value: _currentMixValue,
-              min: 0,
-              max: 100,
-              divisions: 1,
-              label: _currentMixValue.round().toString(),
-              onChanged: (double value) {
-                setState(() {
-                  _currentMixValue = value;
-                });
-              },
-            ), */
           ],
         ),
       ),
@@ -1030,7 +1003,6 @@ class _ColorSelectorState extends State<ColorSelector> {
       Positioned(
         top: 70.0,
         right: 18.0,
-        //left: min(max(left - 80, 0), width - 200),
         child: _ColorPickerGrid(
           currentColor: widget.color,
           onSelect: () {
@@ -1155,8 +1127,6 @@ Future<void> _save() async {
   print(result);
 }
 
-//Future<void> _hideTools() async {}
-
 class SettingsDrawer extends StatefulWidget {
   final GraphController controller;
 
@@ -1210,24 +1180,6 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                 });
               },
             ),
-            /* TextButton(
-              child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'hide tools',
-                        style: GoogleFonts.raleway(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w300),
-                      ))),
-              onPressed: () {
-                setState(() {
-                  _hideTools();
-                });
-              },
-            ), */
           ],
         ),
       ),
